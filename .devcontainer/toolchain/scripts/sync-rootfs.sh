@@ -29,5 +29,6 @@ rsync -crlpgoD --itemize-changes \
   --exclude=/etc/passwd \
   --exclude=/etc/shadow \
   --exclude=/etc/fstab \
+  --exclude=/run/lock \
   --exclude=THIS_IS_NOT_YOUR_ROOT_FILESYSTEM \
   $RSYNC_OPT $SRC $DST

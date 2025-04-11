@@ -5,7 +5,7 @@ set -o pipefail
 set -o nounset
 # set -o xtrace
 
-ZIG_VERSION=0.13.0
+ZIG_VERSION=0.14.0
 
 remove_zig() {
     rm -rf /usr/local/bin/zio

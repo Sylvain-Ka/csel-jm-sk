@@ -3,6 +3,17 @@
         {
             "name": "Linux",
             "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/buildroot/output/host/bin/aarch64-linux-gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-arm64"
+        },
+        {
+            "name": "Linux-Kernel",
+            "includePath": [
                 "${workspaceFolder}/**",
                 "/buildroot/output/build/linux-headers-5.15.148/include",
                 "/buildroot/output/build/linux-headers-5.15.148/arch/arm64/include",
@@ -10,10 +21,9 @@
                 "/buildroot/output/build/linux-headers-5.15.148/**"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang",
-            "cStandard": "c99",
-            "cppStandard": "c++14",
-            "intelliSenseMode": "linux-clang-arm64"
+            "compilerPath": "/buildroot/output/host/bin/aarch64-linux-gcc",
+            "cStandard": "gnu11",
+            "intelliSenseMode": "linux-gcc-arm64"
         }
     ],
     "version": 4

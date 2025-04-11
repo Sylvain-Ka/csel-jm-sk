@@ -8,6 +8,7 @@ mymodule-objs := skeleton.o	## list of objects needed for that module
 else
 include ../../buildroot_path
 include ../../kernel_settings
+include ../../set_host_path
 PWD := $(shell pwd)
 
 all:

@@ -13,6 +13,7 @@ RUN apt-get update && \
     device-tree-compiler \
     file \
     flex \
+    clang-format \
     libfl-dev \
     libglib2.0-dev \
     libssl-dev \
