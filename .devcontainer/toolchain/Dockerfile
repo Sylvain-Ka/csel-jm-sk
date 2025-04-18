@@ -28,3 +28,4 @@ RUN apt-get update && \
 
 COPY scripts/* /usr/local/bin/
 RUN chmod +x /usr/local/bin/*
+RUN echo "export PATH=$PATH:/buildroot/output/host/bin" >> /etc/bash.bashrc
