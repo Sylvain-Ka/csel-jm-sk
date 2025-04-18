@@ -49,14 +49,6 @@ typedef enum {
     eButton
 } event_type_t;
 
-
-typedef struct {
-    void (* handler)(void*); // void <handler_name>(void*)
-    void* arg; // argument for the handler
-    event_type_t ev_type; // event type
-} EventHandler_t;
-
-
 static int open_led()
 {
     // unexport pin out of sysfs (reinitialization)
@@ -80,31 +72,27 @@ static int open_led()
     return f;
 }
 
-static void toggle_led(void* ledfd)
+static void toggle_led(int ledfd)
 {
     char value[2];
-    int led = *(int*)ledfd;
-
     // Read current value
-    pread(led, value, sizeof(value), 0);
+    pread(ledfd, value, sizeof(value), 0);
     // Toggle value
     if (value[0] == '0') {
-        pwrite(led, "1", sizeof("1"), 0);
+        pwrite(ledfd, "1", sizeof("1"), 0);
     } else {
-        pwrite(led, "0", sizeof("0"), 0);
+        pwrite(ledfd, "0", sizeof("0"), 0);
     }    
 }
 
-static void turn_on_led(void* ledfd)
+static void turn_on_led(int ledfd)
 {
-    int led = *(int*)ledfd;
-    pwrite(led, "1", sizeof("1"), 0);
+    pwrite(ledfd, "1", sizeof("1"), 0);
 }
 
-static void turn_off_led(void* ledfd)
+static void turn_off_led(int ledfd)
 {
-    int led = *(int*)ledfd;
-    pwrite(led, "0", sizeof("0"), 0);
+    pwrite(ledfd, "0", sizeof("0"), 0);
 }
 
 int main(int argc, char* argv[])
@@ -167,26 +155,14 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    // Event handlers
-    EventHandler_t duty_timer_event_handler = {
-        .handler = turn_off_led,
-        .arg = (void*)&led,
-        .ev_type = eDutyTimer
-    };
-    EventHandler_t period_timer_event_handler = {
-        .handler = turn_on_led,
-        .arg = (void*)&led,
-        .ev_type = ePeriodTimer
-    };
-
     // Add the timerfd to the epoll instance
     struct epoll_event duty_timer_event = {
         .events = EPOLLIN,
-        .data.ptr = (void*) &duty_timer_event_handler
+        .data.u32 = eDutyTimer
     };
     struct epoll_event period_timer_event = {
         .events = EPOLLIN,
-        .data.ptr = (void*) &period_timer_event_handler
+        .data.u32 = ePeriodTimer
     };
 
     if(epoll_ctl(epollfd, EPOLL_CTL_ADD, dutytimerfd, &duty_timer_event) < 0) {
@@ -208,19 +184,17 @@ int main(int argc, char* argv[])
         }
         // Handle events
         for(int i=0; i<nr; i++){
-            // Call the corresponding handler
-            EventHandler_t* handler = (EventHandler_t*)events[i].data.ptr;
-            handler->handler(handler->arg);
+            uint64_t expirations;
 
-
-            switch(handler->ev_type) {
-                uint64_t expirations;
+            switch(events[i].data.u32){
                 case eDutyTimer:
                     // Read to clear the event
                     read(dutytimerfd, &expirations, sizeof(uint64_t));
                     if(expirations > 1){
                         printf("Timer expired %lu times\n", expirations);
                     }
+                    // Turn off the LED
+                    turn_off_led(led);
                     break;
                 case ePeriodTimer:
                     // Read to clear the event
@@ -228,9 +202,13 @@ int main(int argc, char* argv[])
                     if(expirations > 1){
                         printf("Timer expired %lu times\n", expirations);
                     }
+                    // Turn on the LED
+                    turn_on_led(led);
                     break;
                 case eButton:
                     // Handle button event
+                    break;
+                default:
                     break;
             }
         }
