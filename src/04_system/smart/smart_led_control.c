@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "drivers/drivers.h"
 
@@ -40,13 +41,17 @@
 typedef enum {
     eP1Timer,
     eP2Timer,
-    eButton
+    ePressTimer,
+    eButtonK1,
+    eButtonK2,
+    eButtonK3
 } event_type_t;
 
 /******************************************************************************
  * Global variables
  *****************************************************************************/
 static timers_fd_t timers_fd;
+buttons_fd_t buttons_fd;
 static int epollfd = -1;
 
 /******************************************************************************
@@ -57,6 +62,10 @@ static int init_app(long period_ms, long duty_percent)
     // Open the LED
     open_led();
     turn_on_led();
+
+    // Open the buttons
+    open_buttons();
+    buttons_fd = get_button_fds();
 
     // Initialize the timers
     timers_fd = init_timers(period_ms, duty_percent);
@@ -77,6 +86,22 @@ static int init_app(long period_ms, long duty_percent)
         .events = EPOLLIN,
         .data.u32 = eP2Timer
     };
+    struct epoll_event press_timer_event = {
+        .events = EPOLLIN,
+        .data.u32 = ePressTimer
+    };
+    struct epoll_event k1_event = {
+        .events = EPOLLPRI,
+        .data.u32 = eButtonK1
+    };
+    struct epoll_event k2_event = {
+        .events = EPOLLPRI,
+        .data.u32 = eButtonK2
+    };
+    struct epoll_event k3_event = {
+        .events = EPOLLPRI,
+        .data.u32 = eButtonK3
+    };
 
     // Configure epoll
     if(epoll_ctl(epollfd, EPOLL_CTL_ADD, timers_fd.fd_p1, &p1_event) < 0) {
@@ -87,10 +112,26 @@ static int init_app(long period_ms, long duty_percent)
         perror("Couldn't add timerfd to epoll");
         return -1;
     }
+    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, timers_fd.fd_press, &press_timer_event) < 0) {
+        perror("Couldn't add timerfd to epoll");
+        return -1;
+    }
+    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, buttons_fd.fd_k1, &k1_event) < 0) {
+        perror("Couldn't add buttonfd to epoll");
+        return -1;
+    }
+    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, buttons_fd.fd_k2, &k2_event) < 0) {
+        perror("Couldn't add buttonfd to epoll");
+        return -1;
+    }
+    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, buttons_fd.fd_k3, &k3_event) < 0) {
+        perror("Couldn't add buttonfd to epoll");
+        return -1;
+    }
 
     // Start the timers
     start_timers();
-    
+
     return 0;
 }
 
@@ -105,6 +146,8 @@ static int handle_events()
         return -1;
     }
 
+    static bool increase = false;
+    static bool decrease = false;
     // Handle events
     for(int i=0; i<nr; i++){
         switch(events[i].data.u32){
@@ -120,8 +163,42 @@ static int handle_events()
                 // Turn on the LED
                 turn_on_led();
                 break;
-            case eButton:
+            case ePressTimer:
+                // Read to clear the event
+                clear_timer_event(timers_fd.fd_press);
+                // Handle event
+                if(increase) increase_timer_period();
+                else if(decrease) decrease_timer_period();
+                break;
+            case eButtonK1:
+                // Handle event
+                if(clear_button_event(buttons_fd.fd_k1) && !decrease) {
+                    increase_timer_period();
+                    start_press_timer();
+                    increase = true;
+                }
+                else{
+                    stop_press_timer();
+                    increase = false;
+                }
+                break;
+            case eButtonK2:
+                // Read to clear the event
+                clear_button_event(buttons_fd.fd_k2);
                 // Handle button event
+                reset_timer_period();
+                break;
+            case eButtonK3:
+                // Read to clear the event
+                if(clear_button_event(buttons_fd.fd_k3) && !increase) {
+                    decrease_timer_period();
+                    start_press_timer();
+                    decrease = true;
+                }
+                else{
+                    stop_press_timer();
+                    decrease = false;
+                }
                 break;
             default:
                 break;
@@ -135,7 +212,7 @@ static int handle_events()
  *****************************************************************************/
 int main(int argc, char* argv[])
 {
-    long duty   = 25;     // %
+    long duty   = 50;     // %
     long period = 500;  // ms
     if (argc >= 2) period = atoi(argv[1]);
 

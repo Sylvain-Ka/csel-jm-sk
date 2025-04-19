@@ -25,12 +25,28 @@
 #define BOARD_H
 
 /*
-* status led - gpioa.10 --> gpio10
-* power led  - gpiol.10 --> gpio362
+* GPIO paths
 */
 #define GPIO_EXPORT "/sys/class/gpio/export"
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
+
+/*
+* status led - gpioa.10 --> gpio10
+* power led  - gpiol.10 --> gpio362
+*/
 #define GPIO_LED "/sys/class/gpio/gpio10"
 #define LED "10"
+
+/*
+* button k1 - gpioa.0 --> gpio0
+* button k2 - gpioa.2 --> gpio2
+* button k3 - gpioa.3 --> gpio3
+*/
+#define GPIO_BUTTON_K1 "/sys/class/gpio/gpio0"
+#define GPIO_BUTTON_K2 "/sys/class/gpio/gpio2"
+#define GPIO_BUTTON_K3 "/sys/class/gpio/gpio3"
+#define BUTTON_K1 "0"
+#define BUTTON_K2 "2"
+#define BUTTON_K3 "3"
 
 #endif // BOARD_H

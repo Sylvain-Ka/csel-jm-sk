@@ -15,17 +15,27 @@
  *
  * Project: HEIA-FR / HES-SO MSE - MA-CSEL1 Laboratory
  *
- * Purpose: Include necessary drivers for the application
+ * Purpose: Driver for the buttons control
  *
  * Autĥors: Julien Michel / Sylvain Kämpfer
- * Date:    18.04.2025
+ * Date:    19.04.2025
  */
 
-#ifndef DRIVERS_H
-#define DRIVERS_H
+#ifndef BUTTONS_H
+#define BUTTONS_H
+ 
+#include "../board.h"
 
-#include "timer/timer.h"
-#include "user-io/led/led.h"
-#include "user-io/buttons/buttons.h"
+typedef struct {
+    int fd_k1;
+    int fd_k2;
+    int fd_k3;
+} buttons_fd_t;
 
-#endif // DRIVERS_H
+void open_buttons();
+void close_buttons();
+
+buttons_fd_t get_button_fds();
+int clear_button_event(int fd);
+
+#endif // BUTTONS_H 

@@ -27,11 +27,19 @@
 typedef struct {
     int fd_p1;
     int fd_p2;
+    int fd_press;
     int error;
 } timers_fd_t;
 
 timers_fd_t init_timers(long period_ms, long duty_percent);
 void start_timers();
 void clear_timer_event(int fd);
+
+void increase_timer_period();
+void decrease_timer_period();
+void reset_timer_period();
+
+void start_press_timer();
+void stop_press_timer();
 
 #endif // TIMER_H
