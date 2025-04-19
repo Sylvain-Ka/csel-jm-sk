@@ -28,6 +28,7 @@
 #include <time.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 
 #include "timer.h"
@@ -42,18 +43,19 @@ static timers_fd_t timers_fd = {
     .error = 0
 };
 
-static struct timespec period_time;
-static struct timespec duty_time;
 static struct timespec press_time;
 
-static struct timespec init_period_time;
-static struct timespec init_duty_time;
+static long long period_ns;
+static long long duty_ns;
 
-static struct itimerspec period_timer_value = {
+static long init_period_ns;
+static long init_duty_ns;
+
+static struct itimerspec p1_timer_value = {
     .it_value = {0, 0},
     .it_interval = {0, 0}
 };
-static struct itimerspec duty_timer_value = {
+static struct itimerspec p2_timer_value = {
     .it_value = {0, 0},
     .it_interval = {0, 0}
 };
@@ -62,28 +64,54 @@ static struct itimerspec press_timer_value = {
     .it_interval = {0, 0}
 };
 
-static const long press_time_ns = 1000*1000000;
+static const long press_time_ns = 200*1000000;
 static const long press_factor = 120; //%
 
 /******************************************************************************
  * Local functions
  *****************************************************************************/
-static void update_timers_value()
+// Updates the timer values for the given duty times.
+// Period is common for both timers.
+static void update_it_values(long p1_val_ns, long p2_val_ns)
 {
-    duty_timer_value.it_value = duty_time;
-    duty_timer_value.it_interval = period_time;
+    p1_timer_value.it_value.tv_sec = p1_val_ns / 1000000000;
+    p1_timer_value.it_value.tv_nsec = p1_val_ns % 1000000000;
+    p1_timer_value.it_interval.tv_sec = period_ns / 1000000000;
+    p1_timer_value.it_interval.tv_nsec = period_ns % 1000000000;
 
-    period_timer_value.it_value = period_time;
-    period_timer_value.it_interval = period_time;
+    p2_timer_value.it_value.tv_sec = p2_val_ns / 1000000000;
+    p2_timer_value.it_value.tv_nsec = p2_val_ns % 1000000000;
+    p2_timer_value.it_interval.tv_sec = period_ns / 1000000000;
+    p2_timer_value.it_interval.tv_nsec = period_ns % 1000000000;
 }
 
-static void update_time_values(long period_ns, long duty_ns)
+static void update_timers_value(bool cur_val)
 {
-    period_time.tv_sec = period_ns / 1000000000;
-    period_time.tv_nsec = period_ns % 1000000000;
+    if(cur_val) {
+        // Take current value into account to set the next timer values for smooth transition
+        struct itimerspec current_val_p1;
+        struct itimerspec current_val_p2;
+        timerfd_gettime(timers_fd.fd_p1, &current_val_p1);
+        timerfd_gettime(timers_fd.fd_p2, &current_val_p2);
+        
+        long current_val_p1_ns = current_val_p1.it_value.tv_sec * 1000000000 + current_val_p1.it_value.tv_nsec;
+        long current_val_p2_ns = current_val_p2.it_value.tv_sec * 1000000000 + current_val_p2.it_value.tv_nsec;
+        long p1_it_val_ns, p2_it_val_ns;
+        // Which is the next timer to expire?
+        if(current_val_p1_ns < current_val_p2_ns) {
+            p1_it_val_ns = current_val_p1_ns;
+            p2_it_val_ns = current_val_p1_ns + (period_ns - duty_ns);
+        }
+        else {
+            p1_it_val_ns = current_val_p2_ns + duty_ns;
+            p2_it_val_ns = current_val_p2_ns;
+        }
 
-    duty_time.tv_sec = duty_ns / 1000000000;
-    duty_time.tv_nsec = duty_ns % 1000000000;
+        update_it_values(p1_it_val_ns, p2_it_val_ns);
+    }
+    else {
+        update_it_values(duty_ns, period_ns);
+    }
 }
 
 /******************************************************************************
@@ -92,18 +120,15 @@ static void update_time_values(long period_ns, long duty_ns)
 timers_fd_t init_timers(long period_ms, long duty_percent)
 {
     // Convert to nanoseconds
-    long period_ns = period_ms * 1000000;  // in ns
-    long duty_ns = (long) ((long long)period_ns * duty_percent / 100);
-
-    // Format period and duty cycle values for the timer
-    update_time_values(period_ns, duty_ns);
+    period_ns = period_ms * 1000000;  // in ns
+    duty_ns = (long) ((long long)period_ns * duty_percent / 100);
     
     press_time.tv_sec = press_time_ns / 1000000000;
     press_time.tv_nsec = (press_time_ns % 1000000000);
 
     // Store the initial values
-    init_period_time = period_time;
-    init_duty_time = duty_time;
+    init_period_ns = period_ns;
+    init_duty_ns = duty_ns;
     
     // timerfd creation
     timers_fd.fd_p1 = timerfd_create(CLOCK_MONOTONIC, 0);
@@ -125,9 +150,8 @@ timers_fd_t init_timers(long period_ms, long duty_percent)
         return timers_fd;
     }
 
-
     // Set the timer values
-    update_timers_value();
+    update_timers_value(false);
 
     press_timer_value.it_value = press_time;
     press_timer_value.it_interval = press_time;
@@ -141,10 +165,10 @@ timers_fd_t init_timers(long period_ms, long duty_percent)
 void start_timers()
 {
     // Start the timers
-    if (timerfd_settime(timers_fd.fd_p1, 0, &duty_timer_value, NULL) < 0) {
+    if (timerfd_settime(timers_fd.fd_p1, 0, &p1_timer_value, NULL) < 0) {
         perror("Couldn't start duty timer");
     }
-    if (timerfd_settime(timers_fd.fd_p2, 0, &period_timer_value, NULL) < 0) {
+    if (timerfd_settime(timers_fd.fd_p2, 0, &p2_timer_value, NULL) < 0) {
         perror("Couldn't start period timer");
     }
 }
@@ -167,17 +191,11 @@ void clear_timer_event(int fd)
  *****************************************************************************/
 void decrease_timer_period()
 {
-    long long period_time_ns = period_time.tv_sec * 1000000000 + period_time.tv_nsec;
-    long long duty_time_ns = duty_time.tv_sec * 1000000000 + duty_time.tv_nsec;
-    
-    period_time_ns = period_time_ns * press_factor / 100;
-    duty_time_ns = duty_time_ns * press_factor / 100;
-
-    // Update period and duty cycle values
-    update_time_values(period_time_ns, duty_time_ns);
+    period_ns = period_ns * press_factor / 100;
+    duty_ns = duty_ns * press_factor / 100;
 
     // Update the timer values
-    update_timers_value();
+    update_timers_value(true);
 
     // Restart the timers
     start_timers();
@@ -188,17 +206,11 @@ void decrease_timer_period()
  *****************************************************************************/
 void increase_timer_period()
 {
-    long long period_time_ns = period_time.tv_sec * 1000000000 + period_time.tv_nsec;
-    long long duty_time_ns = duty_time.tv_sec * 1000000000 + duty_time.tv_nsec;
-
-    period_time_ns = period_time_ns * 100 / press_factor;
-    duty_time_ns = duty_time_ns * 100 / press_factor;
-
-    // Update period and duty cycle values
-    update_time_values(period_time_ns, duty_time_ns);
+    period_ns = period_ns * 100 / press_factor;
+    duty_ns = duty_ns * 100 / press_factor;
 
     // Update the timer values
-    update_timers_value();
+    update_timers_value(true);
 
     // Restart the timers
     start_timers();
@@ -210,11 +222,11 @@ void increase_timer_period()
 void reset_timer_period()
 {
     // Reset the period and duty cycle values
-    period_time = init_period_time;
-    duty_time = init_duty_time;
+    period_ns = init_period_ns;
+    duty_ns = init_duty_ns;
 
     // Update the timer values
-    update_timers_value();
+    update_timers_value(true);
 
     // Restart the timers
     start_timers();
