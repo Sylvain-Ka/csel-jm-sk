@@ -21,8 +21,8 @@
  * Date:    18.04.2025
  */
 
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef DRIVERS_TIMER_TIMER_H_
+#define DRIVERS_TIMER_TIMER_H_
 
 typedef struct {
     int fd_p1;
@@ -32,14 +32,14 @@ typedef struct {
 } timers_fd_t;
 
 timers_fd_t init_timers(long period_ms, long duty_percent);
-void start_timers();
+void start_timers(void);
 void clear_timer_event(int fd);
 
-void increase_timer_period();
-void decrease_timer_period();
-void reset_timer_period();
+void increase_timer_period(void);
+void decrease_timer_period(void);
+void reset_timer_period(void);
 
-void start_press_timer();
-void stop_press_timer();
+void start_press_timer(void);
+void stop_press_timer(void);
 
-#endif // TIMER_H
+#endif  // DRIVERS_TIMER_TIMER_H_

@@ -21,13 +21,13 @@
  * Date:    18.04.2025
  */
 
+#include "led.h"
+
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <errno.h>
-#include <unistd.h>
 #include <string.h>
-
-#include "led.h"
+#include <unistd.h>
 
 /******************************************************************************
  * Global variables
@@ -35,9 +35,15 @@
 static int led_fd = -1;
 
 /******************************************************************************
- * Function: open_led
+ * Functions
  *****************************************************************************/
-void open_led()
+
+/**
+ * @brief Open all the leds
+ * @param None
+ * @retval None
+ */
+void open_led(void)
 {
     // unexport pin out of sysfs (reinitialization)
     int f = open(GPIO_UNEXPORT, O_WRONLY);
@@ -56,75 +62,78 @@ void open_led()
 
     // open gpio value attribute
     led_fd = open(GPIO_LED "/value", O_RDWR);
-    if(led_fd < 0) {
+    if (led_fd < 0) {
         perror("Error opening LED");
     }
 }
 
-/******************************************************************************
- * Function: close_led
- *****************************************************************************/
-void close_led()
+/**
+ * @brief Closes all the led file desciptor
+ * @param None
+ * @retval
+ */
+void close_led(void)
 {
-    if(led_fd < 0) {
-        printf("LED not opened\n");
-        return;
-    }
-    // close gpio value attribute
-    close(led_fd);
-    led_fd = -1;
+    if (led_fd < 0) {
+        (void)printf("LED not opened\n");
+    } else {
+        // close gpio value attribute
+        close(led_fd);
+        led_fd = -1;
 
-    // unexport pin out of sysfs
-    int f = open(GPIO_UNEXPORT, O_WRONLY);
-    write(f, LED, strlen(LED));
-    close(f);
+        // unexport pin out of sysfs
+        int f = open(GPIO_UNEXPORT, O_WRONLY);
+        write(f, LED, strlen(LED));
+        close(f);
+    }
 }
 
-/******************************************************************************
- * Function: turn_on_led
- *****************************************************************************/
-void turn_on_led()
+/**
+ * @brief Turn all the leds ON
+ * @param None
+ * @retval None
+ */
+void turn_on_led(void)
 {
-    if(led_fd < 0) {
-        printf("LED not opened\n");
-        return;
-    }
-
-    pwrite(led_fd, "1", sizeof("1"), 0);
-    
-}
-
-/******************************************************************************
- * Function: turn_off_led
- *****************************************************************************/
-void turn_off_led()
-{
-    if(led_fd < 0) {
-        printf("LED not opened\n");
-        return;
-    }
-
-    pwrite(led_fd, "0", sizeof("0"), 0);
-}
-
-/******************************************************************************
- * Function: toggle_led
- *****************************************************************************/
-void toggle_led()
-{
-    char value[2];
-
-    if(led_fd < 0) {
-        printf("LED not opened\n");
-        return;
-    }
-
-    // Read current value
-    pread(led_fd, value, sizeof(value), 0);
-    // Toggle value
-    if (value[0] == '0') {
+    if (led_fd < 0) {
+        (void)printf("LED not opened\n");
+    } else {
         pwrite(led_fd, "1", sizeof("1"), 0);
+    }
+}
+
+/**
+ * @brief Turn all the leds OFF
+ * @param None
+ * @retval None
+ */
+void turn_off_led(void)
+{
+    if (led_fd < 0) {
+        (void)printf("LED not opened\n");
     } else {
         pwrite(led_fd, "0", sizeof("0"), 0);
-    }    
+    }
+}
+
+/**
+ * @brief Toggle all the leds
+ * @param None
+ * @retval None
+ */
+void toggle_led(void)
+{
+    if (led_fd < 0) {
+        (void)printf("LED not opened\n");
+    } else {
+        char value[2];
+        // Read current value
+        pread(led_fd, value, sizeof(value), 0);
+        // Toggle value
+        if (value[0] == '0') {
+            pwrite(led_fd, "1", sizeof("1"), 0);
+        } else {
+            pwrite(led_fd, "0", sizeof("0"), 0);
+        }
+    }
 }

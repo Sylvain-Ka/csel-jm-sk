@@ -21,61 +21,59 @@
  * Date:    19.04.2025
  */
 
+#include "buttons.h"
+
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <errno.h>
-#include <unistd.h>
 #include <string.h>
-
-#include "buttons.h"
+#include <unistd.h>
 
 /******************************************************************************
  * Global variables
  *****************************************************************************/
-static buttons_fd_t buttons_fd = {
-    .fd_k1 = -1,
-    .fd_k2 = -1,
-    .fd_k3 = -1
-};
+static buttons_fd_t buttons_fd = {.fd_k1 = -1, .fd_k2 = -1, .fd_k3 = -1};
 
 static const int n_buttons = 3;
 
-static const char *gpio_buttons[] = {
-    GPIO_BUTTON_K1,
-    GPIO_BUTTON_K2,
-    GPIO_BUTTON_K3
-};
+static const char* gpio_buttons[] = {
+    GPIO_BUTTON_K1, GPIO_BUTTON_K2, GPIO_BUTTON_K3};
 
-static const char *buttons[] = {
-    BUTTON_K1,
-    BUTTON_K2,
-    BUTTON_K3
-};
+static const char* buttons[] = {BUTTON_K1, BUTTON_K2, BUTTON_K3};
 
 /******************************************************************************
- * Function: open_buttons
+ * Functions
  *****************************************************************************/
-void open_buttons()
+
+/**
+ * @brief Open button file descriptor
+ * @param None
+ * @retval None
+ */
+void open_buttons(void)
 {
     int f;
     // unexport pin out of sysfs (reinitialization)
-    for(int i = 0; i < n_buttons; i++) {
+    for (int i = 0; i < n_buttons; i++) {
         f = open(GPIO_UNEXPORT, O_WRONLY);
         write(f, buttons[i], strlen(buttons[i]));
         close(f);
     }
 
     // export pin to sysfs
-    for(int i = 0; i < n_buttons; i++) {
+    for (int i = 0; i < n_buttons; i++) {
         f = open(GPIO_EXPORT, O_WRONLY);
         write(f, buttons[i], strlen(buttons[i]));
         close(f);
     }
 
     // config pin
-    for(int i = 0; i < n_buttons; i++) {
+    for (int i = 0; i < n_buttons; i++) {
         char path[128];
-        snprintf(path, sizeof(path), "%s/direction", gpio_buttons[i]);
+        int ret = snprintf(path, sizeof(path), "%s/direction", gpio_buttons[i]);
+        if (ret < 0) {
+            perror("Error while configuring pin");
+        }
         f = open(path, O_WRONLY);
         write(f, "in", 2);
         close(f);
@@ -96,70 +94,70 @@ void open_buttons()
 
     // open gpio value attribute
     buttons_fd.fd_k1 = open(GPIO_BUTTON_K1 "/value", O_RDONLY);
-    if(buttons_fd.fd_k1 < 0) {
+    if (buttons_fd.fd_k1 < 0) {
         perror("Error opening button K1");
     }
     buttons_fd.fd_k2 = open(GPIO_BUTTON_K2 "/value", O_RDONLY);
-    if(buttons_fd.fd_k2 < 0) {
+    if (buttons_fd.fd_k2 < 0) {
         perror("Error opening button K2");
     }
     buttons_fd.fd_k3 = open(GPIO_BUTTON_K3 "/value", O_RDONLY);
-    if(buttons_fd.fd_k3 < 0) {
+    if (buttons_fd.fd_k3 < 0) {
         perror("Error opening button K3");
     }
 
     // Clear the events
-    clear_button_event(buttons_fd.fd_k1);
-    clear_button_event(buttons_fd.fd_k2);
-    clear_button_event(buttons_fd.fd_k3);
+    (void)clear_button_event(buttons_fd.fd_k1);
+    (void)clear_button_event(buttons_fd.fd_k2);
+    (void)clear_button_event(buttons_fd.fd_k3);
 }
 
-/******************************************************************************
- * Function: close_buttons
- *****************************************************************************/
-void close_buttons()
+/**
+ * @brief Close buttons fds
+ * @param None
+ * @retval None
+ */
+void close_buttons(void)
 {
-    if(buttons_fd.fd_k1 < 0) {
-        printf("Button K1 not opened\n");
-    }
-    else {
+    if (buttons_fd.fd_k1 < 0) {
+        (void)printf("Button K1 not opened\n");
+    } else {
         close(buttons_fd.fd_k1);
         buttons_fd.fd_k1 = -1;
     }
-    if(buttons_fd.fd_k2 < 0) {
-        printf("Button K2 not opened\n");
-    }
-    else {
+    if (buttons_fd.fd_k2 < 0) {
+        (void)printf("Button K2 not opened\n");
+    } else {
         close(buttons_fd.fd_k2);
         buttons_fd.fd_k2 = -1;
     }
-    if(buttons_fd.fd_k3 < 0) {
-        printf("Button K3 not opened\n");
-    }
-    else {
+    if (buttons_fd.fd_k3 < 0) {
+        (void)printf("Button K3 not opened\n");
+    } else {
         close(buttons_fd.fd_k3);
         buttons_fd.fd_k3 = -1;
     }
 
     // unexport pin out of sysfs
     int f = open(GPIO_UNEXPORT, O_WRONLY);
-    for(int i = 0; i < n_buttons; i++) {
+    for (int i = 0; i < n_buttons; i++) {
         write(f, buttons[i], strlen(buttons[i]));
     }
     close(f);
 }
 
-/******************************************************************************
- * Function: get_button_fds
- *****************************************************************************/
-buttons_fd_t get_button_fds()
-{
-    return buttons_fd;
-}
+/**
+ * @brief Get button file descriptors
+ * @param None
+ * @retval buttons_fd_t structure with file descriptors
+ */
+buttons_fd_t get_button_fds(void) { return buttons_fd; }
 
-/******************************************************************************
- * Function: clear_button_event
- *****************************************************************************/
+/**
+ * @brief Clear button event
+ * @param fd File descriptor to the GPIO
+ * @retval 1 if button pressed, 0 if not, -1 if error
+ */
 int clear_button_event(int fd)
 {
     // Read to clear the event
@@ -169,8 +167,10 @@ int clear_button_event(int fd)
     if (ret < 0) {
         perror("Error clearing button event");
     }
-    if(buf[0] == '1') ret = 1;
-    else ret = 0;
-
+    if (buf[0] == '1') {
+        ret = 1;
+    } else {
+        ret = 0;
+    }
     return ret;
 }

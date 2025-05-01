@@ -21,11 +21,11 @@
  * Date:    18.04.2025
  */
 
-#ifndef DRIVERS_H
-#define DRIVERS_H
+#ifndef DRIVERS_DRIVERS_H_
+#define DRIVERS_DRIVERS_H_
 
 #include "timer/timer.h"
-#include "user-io/led/led.h"
 #include "user-io/buttons/buttons.h"
+#include "user-io/led/led.h"
 
-#endif // DRIVERS_H
+#endif  // DRIVERS_DRIVERS_H_

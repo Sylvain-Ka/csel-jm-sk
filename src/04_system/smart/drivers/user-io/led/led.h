@@ -21,16 +21,16 @@
  * Date:    18.04.2025
  */
 
-#ifndef LED_H
-#define LED_H
+#ifndef DRIVERS_USER_IO_LED_LED_H_
+#define DRIVERS_USER_IO_LED_LED_H_
 
 #include "../board.h"
 
-void open_led();
-void close_led();
+void open_led(void);
+void close_led(void);
 
-void turn_on_led();
-void turn_off_led();
-void toggle_led();
+void turn_on_led(void);
+void turn_off_led(void);
+void toggle_led(void);
 
-#endif // LED_H
+#endif  // DRIVERS_USER_IO_LED_LED_H_

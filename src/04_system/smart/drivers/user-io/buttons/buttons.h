@@ -21,9 +21,9 @@
  * Date:    19.04.2025
  */
 
-#ifndef BUTTONS_H
-#define BUTTONS_H
- 
+#ifndef DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
+#define DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
+
 #include "../board.h"
 
 typedef struct {
@@ -32,10 +32,10 @@ typedef struct {
     int fd_k3;
 } buttons_fd_t;
 
-void open_buttons();
-void close_buttons();
+void open_buttons(void);
+void close_buttons(void);
 
-buttons_fd_t get_button_fds();
+buttons_fd_t get_button_fds(void);
 int clear_button_event(int fd);
 
-#endif // BUTTONS_H 
+#endif  // DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
