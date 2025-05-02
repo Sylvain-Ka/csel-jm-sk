@@ -28,4 +28,5 @@ src/03_drivers/sample01/main1
 src/03_drivers/sample01/main2
 src/03_drivers/sample01/main3
 
+src/**/**/build
 backup-files/*
