@@ -97,6 +97,14 @@ int main(void)
     const int signals[]      = {SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGABRT};
     const size_t nbr_signals = sizeof(signals) / sizeof(signals[0]);
 
+    /* Put main process on CPU 0 */
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset);
+    if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
+        error_exit("Parent sched_setaffinity error");
+    }
+
     /* Create a socket pair */
     int fd[2];
     static const int parentsocket = 0;
@@ -119,7 +127,6 @@ int main(void)
     pid_t pid = fork();
     if (0 == pid) { /* Child -------------------------------------------------*/
         /* Put child process on CPU 1 */
-        cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(1, &cpuset);
         if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
@@ -143,15 +150,7 @@ int main(void)
         }
         close(fd[childsocket]);
 
-    } else if (0 < pid) { /* Parent ------------------------------------------*/
-        /* Put parent process on CPU 0 */
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(0, &cpuset);
-        if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
-            error_exit("Parent sched_setaffinity error");
-        }
-
+    } else if (0 < pid) { /* Parent ------------------------------------------*/ 
         /* Close the child socket */
         close(fd[childsocket]);
 
