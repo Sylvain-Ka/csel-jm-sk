@@ -94,7 +94,7 @@ int main(void)
     const int num_msg         = sizeof(msg_to_send) / sizeof(msg_to_send[0]);
 
     /* Signals to ignore */
-    const int signals[]      = {SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGUSR1};
+    const int signals[]      = {SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGABRT};
     const size_t nbr_signals = sizeof(signals) / sizeof(signals[0]);
 
     /* Create a socket pair */
