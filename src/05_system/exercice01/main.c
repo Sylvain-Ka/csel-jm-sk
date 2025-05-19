@@ -105,22 +105,22 @@ int main(void)
         error_exit("Parent sched_setaffinity error");
     }
 
+    /* Catch some signals */
+    struct sigaction sig_ign_notify = {
+        .sa_handler = catch_sig_ign,
+    };
+    for (size_t i = 0; i < nbr_signals; i++) {
+        if (-1 == sigaction(signals[i], &sig_ign_notify, NULL)) {
+            error_exit("Catch sigaction failed");
+        }
+    }
+
     /* Create a socket pair */
     int fd[2];
     static const int parentsocket = 0;
     static const int childsocket  = 1;
     if (-1 == socketpair(AF_UNIX, SOCK_STREAM, 0, fd)) {
         error_exit("socketpair error");
-    }
-
-    /* Ignore some signals */
-    struct sigaction sig_ign = {
-        .sa_handler = SIG_IGN,
-    };
-    for (size_t i = 0; i < nbr_signals; i++) {
-        if (-1 == sigaction(signals[i], &sig_ign, NULL)) {
-            error_exit("Child sigaction failed, SIG_IGN");
-        }
     }
 
     /* Fork */
@@ -131,6 +131,16 @@ int main(void)
         CPU_SET(1, &cpuset);
         if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
             error_exit("Child sched_setaffinity error");
+        }
+
+        /* Ignore some signals */
+        struct sigaction sig_ign = {
+            .sa_handler = SIG_IGN,
+        };
+        for (size_t i = 0; i < nbr_signals; i++) {
+            if (-1 == sigaction(signals[i], &sig_ign, NULL)) {
+                error_exit("Child sigaction failed, SIG_IGN");
+            }
         }
 
         /* Close the parent socket */
@@ -161,16 +171,6 @@ int main(void)
         };
         if (-1 == sigaction(SIGCHLD, &sig_child, NULL)) {
             error_exit("Child sigaction failed, SIGCHLD");
-        }
-
-        /* Ignore some signals */
-        struct sigaction sig_ign_notify = {
-            .sa_handler = catch_sig_ign,
-        };
-        for (size_t i = 0; i < nbr_signals; i++) {
-            if (-1 == sigaction(signals[i], &sig_ign_notify, NULL)) {
-                error_exit("Parent sigaction failed");
-            }
         }
 
         /* Loop forever & wait for messages */
