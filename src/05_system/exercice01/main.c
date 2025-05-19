@@ -36,10 +36,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-/* Private variables ---------------------------------------------------------*/
-
-static volatile sig_atomic_t child_alive = 1;
-
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -49,7 +45,7 @@ static volatile sig_atomic_t child_alive = 1;
  */
 static void catch_sig_ign(int signal)
 {
-    (void)printf("Ingnored exit signal: %d\n", signal);
+    (void)printf("\nIgnored signal: %d\n", signal);
 }
 
 /**
@@ -63,21 +59,6 @@ static void error_exit(const char* msg)
     _exit(1); /* error */
 }
 
-/**
- * @brief Child termination signal handler
- * @param signal Signal number
- * @return None
- */
-static void handle_sigchild(int signal)
-{
-    (void)signal; /* Unused parameter */
-    /* Non-blocking wait on child termination */
-    while (0 < waitpid(-1, NULL, WNOHANG)) {
-    }
-    child_alive = 0;
-    (void)printf("Child was terminated: %d\n", signal);
-}
-
 /* Public function -----------------------------------------------------------*/
 /**
  * @brief Main function
@@ -89,12 +70,31 @@ int main(void)
     const char* msg_to_send[] = {"Hello from child!",
                                  "This is message #2.",
                                  "Almost done...",
-                                 "Bye, see you soon :)"};
+                                 "Bye, see you soon :)",
+                                 "exit"};
     const int num_msg         = sizeof(msg_to_send) / sizeof(msg_to_send[0]);
 
     /* Signals to ignore */
-    const int signals[]      = {SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGUSR1};
+    const int signals[]      = {SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGABRT};
     const size_t nbr_signals = sizeof(signals) / sizeof(signals[0]);
+
+    /* Put main process on CPU 0 */
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset);
+    if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
+        error_exit("Parent sched_setaffinity error");
+    }
+
+    /* Catch some signals */
+    struct sigaction sig_ign_notify = {
+        .sa_handler = catch_sig_ign,
+    };
+    for (size_t i = 0; i < nbr_signals; i++) {
+        if (-1 == sigaction(signals[i], &sig_ign_notify, NULL)) {
+            error_exit("Catch sigaction failed");
+        }
+    }
 
     /* Create a socket pair */
     int fd[2];
@@ -104,25 +104,24 @@ int main(void)
         error_exit("socketpair error");
     }
 
-    /* Ignore some signals */
-    struct sigaction sig_ign = {
-        .sa_handler = SIG_IGN,
-    };
-    for (size_t i = 0; i < nbr_signals; i++) {
-        if (-1 == sigaction(signals[i], &sig_ign, NULL)) {
-            error_exit("Child sigaction failed, SIG_IGN");
-        }
-    }
-
     /* Fork */
     pid_t pid = fork();
     if (0 == pid) { /* Child -------------------------------------------------*/
         /* Put child process on CPU 1 */
-        cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(1, &cpuset);
         if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
             error_exit("Child sched_setaffinity error");
+        }
+
+        /* Ignore some signals */
+        struct sigaction sig_ign = {
+            .sa_handler = SIG_IGN,
+        };
+        for (size_t i = 0; i < nbr_signals; i++) {
+            if (-1 == sigaction(signals[i], &sig_ign, NULL)) {
+                error_exit("Child sigaction failed, SIG_IGN");
+            }
         }
 
         /* Close the parent socket */
@@ -141,44 +140,22 @@ int main(void)
             } while (sleep_time > (unsigned int)0);
         }
         close(fd[childsocket]);
+        (void)printf("Child terminating\n");
 
-    } else if (0 < pid) { /* Parent ------------------------------------------*/
-        /* Put parent process on CPU 0 */
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(0, &cpuset);
-        if (-1 == sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset)) {
-            error_exit("Parent sched_setaffinity error");
-        }
-
+    } else if (0 < pid) { /* Parent ------------------------------------------*/ 
         /* Close the child socket */
         close(fd[childsocket]);
 
-        /* Handle SIGCHLD signal */
-        struct sigaction sig_child = {
-            .sa_handler = handle_sigchild,
-            .sa_flags   = SA_RESTART | SA_NOCLDSTOP,
-        };
-        if (-1 == sigaction(SIGCHLD, &sig_child, NULL)) {
-            error_exit("Child sigaction failed, SIGCHLD");
-        }
-
-        /* Ignore some signals */
-        struct sigaction sig_ign_notify = {
-            .sa_handler = catch_sig_ign,
-        };
-        for (size_t i = 0; i < nbr_signals; i++) {
-            if (-1 == sigaction(signals[i], &sig_ign_notify, NULL)) {
-                error_exit("Parent sigaction failed");
-            }
-        }
-
-        /* Loop forever & wait for signals */
+        /* Loop forever & wait for messages */
         char buf[256];
-        while (1 == child_alive) {
+        while (1) {
             ssize_t nbytes = read(fd[parentsocket], buf, sizeof(buf));
             if (0 < nbytes) {
                 (void)printf("Received message from child: %s\n", buf);
+                if(0 == strncmp(buf, "exit", 4)){
+                    printf("Terminating application...\n");
+                    break;
+                }
             } else {
             }
         }
