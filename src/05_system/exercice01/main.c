@@ -36,10 +36,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-/* Private variables ---------------------------------------------------------*/
-
-static volatile sig_atomic_t child_alive = 1;
-
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -61,21 +57,6 @@ static void error_exit(const char* msg)
 {
     perror(msg);
     _exit(1); /* error */
-}
-
-/**
- * @brief Child termination signal handler
- * @param signal Signal number
- * @return None
- */
-static void handle_sigchild(int signal)
-{
-    (void)signal; /* Unused parameter */
-    /* Non-blocking wait on child termination */
-    while (0 < waitpid(-1, NULL, WNOHANG)) {
-    }
-    child_alive = 0;
-    (void)printf("Child was terminated: %d\n", signal);
 }
 
 /* Public function -----------------------------------------------------------*/
@@ -159,19 +140,11 @@ int main(void)
             } while (sleep_time > (unsigned int)0);
         }
         close(fd[childsocket]);
+        (void)printf("Child terminating\n");
 
     } else if (0 < pid) { /* Parent ------------------------------------------*/ 
         /* Close the child socket */
         close(fd[childsocket]);
-
-        /* Handle SIGCHLD signal */
-        struct sigaction sig_child = {
-            .sa_handler = handle_sigchild,
-            .sa_flags   = SA_RESTART | SA_NOCLDSTOP,
-        };
-        if (-1 == sigaction(SIGCHLD, &sig_child, NULL)) {
-            error_exit("Child sigaction failed, SIGCHLD");
-        }
 
         /* Loop forever & wait for messages */
         char buf[256];
@@ -187,8 +160,6 @@ int main(void)
             }
         }
         close(fd[parentsocket]);
-        (void)printf("Parent waiting for child termination\n");
-        while (1 == child_alive);
         (void)printf("Parent terminating\n");
     } else {
     }
