@@ -49,7 +49,7 @@ static volatile sig_atomic_t child_alive = 1;
  */
 static void catch_sig_ign(int signal)
 {
-    (void)printf("Ingnored exit signal: %d\n", signal);
+    (void)printf("\nIgnored signal: %d\n", signal);
 }
 
 /**
@@ -89,7 +89,8 @@ int main(void)
     const char* msg_to_send[] = {"Hello from child!",
                                  "This is message #2.",
                                  "Almost done...",
-                                 "Bye, see you soon :)"};
+                                 "Bye, see you soon :)",
+                                 "exit"};
     const int num_msg         = sizeof(msg_to_send) / sizeof(msg_to_send[0]);
 
     /* Signals to ignore */
@@ -173,16 +174,22 @@ int main(void)
             }
         }
 
-        /* Loop forever & wait for signals */
+        /* Loop forever & wait for messages */
         char buf[256];
-        while (1 == child_alive) {
+        while (1) {
             ssize_t nbytes = read(fd[parentsocket], buf, sizeof(buf));
             if (0 < nbytes) {
                 (void)printf("Received message from child: %s\n", buf);
+                if(0 == strncmp(buf, "exit", 4)){
+                    printf("Terminating application...\n");
+                    break;
+                }
             } else {
             }
         }
         close(fd[parentsocket]);
+        (void)printf("Parent waiting for child termination\n");
+        while (1 == child_alive);
         (void)printf("Parent terminating\n");
     } else {
     }
