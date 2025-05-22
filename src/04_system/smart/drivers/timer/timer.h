@@ -18,28 +18,28 @@
  * Purpose: Driver for the timer control
  *
  * Autĥors: Julien Michel / Sylvain Kämpfer
- * Date:    18.04.2025
+ * Date:    22.05.2025
  */
 
-#ifndef DRIVERS_TIMER_TIMER_H_
-#define DRIVERS_TIMER_TIMER_H_
+#ifndef DRIVERS_TIMER_TIMER_H
+#define DRIVERS_TIMER_TIMER_H
 
+/* Includes ------------------------------------------------------------------*/
+#include <stdint.h>
+#include <time.h>
+
+/* Typedefs ------------------------------------------------------------------*/
 typedef struct {
-    int fd_p1;
-    int fd_p2;
-    int fd_press;
-    int error;
-} timers_fd_t;
+    int fd;
+} mytimer_t;
 
-timers_fd_t init_timers(long period_ms, long duty_percent);
-void start_timers(void);
-void clear_timer_event(int fd);
+// Functions prototypes ------------------------------------------------------*/
 
-void increase_timer_period(void);
-void decrease_timer_period(void);
-void reset_timer_period(void);
+int timer_init(mytimer_t *t);
+int timer_start(mytimer_t *t, time_t sec, long nsec);
+int timer_stop(mytimer_t *t);
+int timer_update(mytimer_t *t, time_t sec, long nsec);
+int timer_get_fd(mytimer_t *t);
+void timer_destroy(mytimer_t *t);
 
-void start_press_timer(void);
-void stop_press_timer(void);
-
-#endif  // DRIVERS_TIMER_TIMER_H_
+#endif // DRIVERS_TIMER_TIMER_H

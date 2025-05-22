@@ -22,217 +22,144 @@
  * Autĥors: Julien Michel / Sylvain Kämpfer
  * Date:    18.04.2025
  */
-#include <errno.h>
-#include <fcntl.h>
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/epoll.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <syslog.h>
 #include <unistd.h>
 
-#include "drivers/drivers.h"
+#include "brd.h"
 
-/******************************************************************************
- * Enumerations
- *****************************************************************************/
-typedef enum {
-    eP1Timer,
-    eP2Timer,
-    ePressTimer,
-    eButtonK1,
-    eButtonK2,
-    eButtonK3
-} event_type_t;
+/* Defines -------------------------------------------------------------------*/
+#define HALF_SECOND 500000000
 
-/******************************************************************************
- * Local variables
- *****************************************************************************/
-static timers_fd_t timer_fd;
-static buttons_fd_t button_fd;
-static int epollfd = -1;
-
-/******************************************************************************
- * Local functions
- *****************************************************************************/
-
+/* Public functions ---------------------------------------------------------*/
 /**
- * @brief Initialize the application
- * @param period_ms: Timer period in milliseconds
- * @param duty_percent: Duty cycle in percent
- * @retval 0 if success, -1 if error
+ * @brief  Main function
+ * @param  argc: Number of arguments
+ * @param  argv: Arguments
+ * @retval None
  */
-static int init_app(long period_ms, long duty_percent)
+int main(int argc, char* argv[])
 {
-    int retval = 0;
-    // Open the LED
-    open_led();
-    turn_on_led();
+    struct epoll_event events[5];
+    bool led_state = false;
+    bool k1_down   = false;
+    bool k3_down   = false;
 
-    // Open the buttons
-    open_buttons();
-    button_fd = get_button_fds();
+    int blink_timer_period     = 1000;  // 1 second
+    int blink_timer_duty_cycle = 50;    // 50% duty cycle
 
-    // Initialize the timers
-    timer_fd = init_timers(period_ms, duty_percent);
+    if (argc > 2) {
+        blink_timer_duty_cycle = atoi(argv[1]);
+    }
 
-    // epoll creation
-    epollfd = epoll_create1(0);
-    if (epollfd < 0) {
-        perror("Couldn't create epollfd");
+    openlog("led-controller", LOG_PID | LOG_CONS, LOG_USER);
+
+    if (brd_init() < 0) {
+        syslog(LOG_ERR, "Board initialization failed");
+        closelog();
+        perror("Board initialization failed\n");
         return -1;
     }
 
-    // Create timerfd events
-    struct epoll_event p1_event = {.events = EPOLLIN, .data.u32 = eP1Timer};
-    struct epoll_event p2_event = {.events = EPOLLIN, .data.u32 = eP2Timer};
-    struct epoll_event press_timer_event = {.events   = EPOLLIN,
-                                            .data.u32 = ePressTimer};
-    struct epoll_event k1_event = {.events = EPOLLPRI, .data.u32 = eButtonK1};
-    struct epoll_event k2_event = {.events = EPOLLPRI, .data.u32 = eButtonK2};
-    struct epoll_event k3_event = {.events = EPOLLPRI, .data.u32 = eButtonK3};
+    int epoll_fd = brd_get_epoll_fd();
 
-    // Configure epoll
-    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, timer_fd.fd_p1, &p1_event) < 0) {
-        perror("Couldn't add timerfd to epoll");
-        retval = -1;
-    } else if (epoll_ctl(epollfd, EPOLL_CTL_ADD, timer_fd.fd_p2, &p2_event) <
-               0) {
-        perror("Couldn't add timerfd to epoll");
-        retval = -1;
-    } else if (epoll_ctl(epollfd,
-                         EPOLL_CTL_ADD,
-                         timer_fd.fd_press,
-                         &press_timer_event) < 0) {
-        perror("Couldn't add timerfd to epoll");
-        retval = -1;
-    } else if (epoll_ctl(epollfd, EPOLL_CTL_ADD, button_fd.fd_k1, &k1_event) <
-               0) {
-        perror("Couldn't add buttonfd to epoll");
-        retval = -1;
-    } else if (epoll_ctl(epollfd, EPOLL_CTL_ADD, button_fd.fd_k2, &k2_event) <
-               0) {
-        perror("Couldn't add buttonfd to epoll");
-        retval = -1;
-    } else if (epoll_ctl(epollfd, EPOLL_CTL_ADD, button_fd.fd_k3, &k3_event) <
-               0) {
-        perror("Couldn't add buttonfd to epoll");
-        retval = -1;
-    } else {
-        // If all went well: Start the timers
-        start_timers();
-    }
-    return retval;
-}
-
-/**
- * @brief Handle the events
- * @param None
- * @retval 0 if success, -1 if error
- */
-static int handle_events(void)
-{
-    struct epoll_event events[2];
-    int retval = 0;
-
-    // Wait for events
-    int nr = epoll_wait(epollfd, events, 2, -1);
-    if (nr < 0) {
-        perror("epoll_wait failed");
-        retval = -1;
-    } else {
-        static bool increase = false;
-        static bool decrease = false;
-        // Handle events
-        for (int i = 0; i < nr; i++) {
-            switch (events[i].data.u32) {
-                case eP1Timer:
-                    // Read to clear the event
-                    clear_timer_event(timer_fd.fd_p1);
-                    // Turn off the LED
-                    turn_off_led();
-                    break;
-                case eP2Timer:
-                    // Read to clear the event
-                    clear_timer_event(timer_fd.fd_p2);
-                    // Turn on the LED
-                    turn_on_led();
-                    break;
-                case ePressTimer:
-                    // Read to clear the event
-                    clear_timer_event(timer_fd.fd_press);
-                    // Handle event
-                    if (increase) {
-                        increase_timer_period();
-                    } else if (decrease) {
-                        decrease_timer_period();
+    while (1) {
+        int nr = epoll_wait(epoll_fd, events, 5, -1);
+        if (nr < 0) {
+            perror("epoll_wait failed");
+            break;
+        }
+        for (int ev_nbr = 0; ev_nbr < nr; ev_nbr++) {
+            switch (events[ev_nbr].data.u32) {
+                case TIMER_BLINK_EVENT:
+                    if (0 > brd_clear_blink_timer_event()) {
+                        syslog(LOG_ERR, "Failed to clear blink timer event");
+                        break;
+                    }
+                    int next_blink_time = 0;
+                    if (led_state) {
+                        brd_set_status_led_off();
+                        led_state = false;
+                        next_blink_time =
+                            blink_timer_period * blink_timer_duty_cycle / 100;
                     } else {
+                        brd_set_status_led_on();
+                        led_state       = true;
+                        next_blink_time = blink_timer_period *
+                                          (100 - blink_timer_duty_cycle) / 100;
+                    }
+                    brd_update_blink_timer(next_blink_time / 1000,
+                                           (next_blink_time % 1000) * 1000000);
+                    break;
+
+                case BUTTONK1_EVENT:
+                    if (1 == brd_read_k1()) {
+                        k1_down = true;
+                        if (blink_timer_period > 100) {
+                            blink_timer_period -= 50;
+                            syslog(LOG_INFO,
+                                   "Blink timer period: %d ms",
+                                   blink_timer_period);
+                        }
+                        (void)brd_start_pooling_timer(0, HALF_SECOND);
+                    } else {
+                        k1_down = false;
+                        if (!k3_down) brd_stop_pooling_timer();
                     }
                     break;
-                case eButtonK1:
-                    // Handle event
-                    if (clear_button_event(button_fd.fd_k1) && !decrease) {
-                        increase_timer_period();
-                        start_press_timer();
-                        increase = true;
+
+                case BUTTONK2_EVENT:
+                    (void)brd_read_k2(); /* To clear event */
+                    blink_timer_period = 1000;
+                    break;
+
+                case BUTTONK3_EVENT:
+                    if (1 == brd_read_k3()) {
+                        k3_down = true;
+                        if (blink_timer_period < 5000) {
+                            blink_timer_period += 50;
+                            syslog(LOG_INFO,
+                                   "Blink timer period: %d ms",
+                                   blink_timer_period);
+                        }
+                        (void)brd_start_pooling_timer(0, HALF_SECOND);
                     } else {
-                        stop_press_timer();
-                        increase = false;
+                        k3_down = false;
+                        if (!k1_down) brd_stop_pooling_timer();
                     }
                     break;
-                case eButtonK2:
-                    // Read to clear the event
-                    (void)clear_button_event(button_fd.fd_k2);
-                    // Handle button event
-                    reset_timer_period();
-                    break;
-                case eButtonK3:
-                    // Read to clear the event
-                    if (clear_button_event(button_fd.fd_k3) && !increase) {
-                        decrease_timer_period();
-                        start_press_timer();
-                        decrease = true;
+
+                case TIMER_POOLING_EVENT:
+                    if (0 > brd_clear_pooling_timer_event()) {
+                        syslog(LOG_ERR, "Failed to clear pooling timer event");
+                        break;
+                    }
+                    (void)brd_start_pooling_timer(0, HALF_SECOND);
+                    if (k1_down && (100 <= blink_timer_period)) {
+                        blink_timer_period -= 50;
+                        syslog(LOG_INFO,
+                               "Blink timer period: %d ms",
+                               blink_timer_period);
+                    } else if (k3_down && (5000 > blink_timer_period)) {
+                        blink_timer_period += 50;
+                        syslog(LOG_INFO,
+                               "Blink timer period: %d ms",
+                               blink_timer_period);
                     } else {
-                        stop_press_timer();
-                        decrease = false;
+                        brd_stop_pooling_timer();
                     }
                     break;
                 default:
+                    syslog(
+                        LOG_ERR, "Unknown event: %d", events[ev_nbr].data.u32);
                     break;
             }
         }
     }
-    return retval;
-}
 
-/******************************************************************************
- * Public functions
- *****************************************************************************/
-
-/**
- * @brief Main function
- * @param argc: Number of arguments
- * @param argv: Arguments
- * @retval 0 if success, -1 if error
- */
-int main(int argc, char* argv[])
-{
-    long duty   = 50;   // %
-    long period = 500;  // ms
-    if (argc >= 2) period = atoi(argv[1]);
-
-    int ret;
-
-    // Init application
-    ret = init_app(period, duty);
-
-    // Main loop
-    while (ret >= 0) {
-        ret = handle_events();
-    }
-    (void)printf("Error, exiting application\n");
-    close_led();
-    return -1;
+    return 0;
 }

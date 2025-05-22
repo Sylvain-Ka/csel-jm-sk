@@ -15,22 +15,23 @@
  *
  * Project: HEIA-FR / HES-SO MSE - MA-CSEL1 Laboratory
  *
- * Purpose: Driver for the LED control
+ * Purpose: HAL library for the GPIO control
  *
  * Autĥors: Julien Michel / Sylvain Kämpfer
- * Date:    18.04.2025
+ * Date:    22.05.2025
  */
+#ifndef DRIVERS_HAL_HAL_GPIO_H
+#define DRIVERS_HAL_HAL_GPIO_H
 
-#ifndef DRIVERS_USER_IO_LED_LED_H_
-#define DRIVERS_USER_IO_LED_LED_H_
+/* Functions prototypes ------------------------------------------------------*/
+int hal_gpio_export(int gpio);
+int hal_gpio_unexport(int gpio);
+int hal_gpio_direction(int gpio, const char* direction);
+int hal_gpio_open_value_fd(int gpio);
+int hal_gpio_close_value_fd(int fd);
+int hal_gpio_write(int fd, int value);
+int hal_gpio_read(int fd);
+int hal_gpio_set_edge(int gpio, const char* edge);
 
-#include "../board.h"
 
-void open_led(void);
-void close_led(void);
-
-void turn_on_led(void);
-void turn_off_led(void);
-void toggle_led(void);
-
-#endif  // DRIVERS_USER_IO_LED_LED_H_
+#endif // DRIVERS_HAL_HAL_GPIO_H

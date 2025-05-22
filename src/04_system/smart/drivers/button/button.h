@@ -18,24 +18,27 @@
  * Purpose: Driver for the buttons control
  *
  * Autĥors: Julien Michel / Sylvain Kämpfer
- * Date:    19.04.2025
+ * Date:    22.05.2025
  */
 
-#ifndef DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
-#define DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
+#ifndef DRIVERS_BUTTON_BUTTON_H
+#define DRIVERS_BUTTON_BUTTON_H
 
-#include "../board.h"
-
+/* Typedefs ------------------------------------------------------------------*/
 typedef struct {
-    int fd_k1;
-    int fd_k2;
-    int fd_k3;
-} buttons_fd_t;
+    int gpio;
+    int fd;
+} button_t;
 
-void open_buttons(void);
-void close_buttons(void);
+typedef enum {
+    RISING  = 0,
+    FALLING = 1,
+    BOTH    = 2,
+} edge_t;
+/* Functions prototypes ------------------------------------------------------*/
 
-buttons_fd_t get_button_fds(void);
-int clear_button_event(int fd);
+int button_init(button_t* button, int gpio, int edge);
+int button_read_clear_event(int fd);
+int button_uninit(button_t* button);
 
-#endif  // DRIVERS_USER_IO_BUTTONS_BUTTONS_H_
+#endif  // DRIVERS_BUTTON_BUTTON_H

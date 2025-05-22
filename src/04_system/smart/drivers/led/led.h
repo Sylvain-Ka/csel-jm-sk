@@ -15,38 +15,25 @@
  *
  * Project: HEIA-FR / HES-SO MSE - MA-CSEL1 Laboratory
  *
- * Purpose: Board specific definitions
+ * Purpose: Led driver library
  *
  * Autĥors: Julien Michel / Sylvain Kämpfer
- * Date:    18.04.2025
+ * Date:    22.05.2025
  */
+#ifndef DRIVERS_LED_LED_H
+#define DRIVERS_LED_LED_H
 
-#ifndef DRIVERS_USER_IO_BOARD_H_
-#define DRIVERS_USER_IO_BOARD_H_
+/* Typedefs ------------------------------------------------------------------*/
 
-/*
- * GPIO paths
- */
-#define GPIO_EXPORT "/sys/class/gpio/export"
-#define GPIO_UNEXPORT "/sys/class/gpio/unexport"
+typedef struct {
+    int gpio;
+    int fd;
+} led_t;
 
-/*
- * status led - gpioa.10 --> gpio10
- * power led  - gpiol.10 --> gpio362
- */
-#define GPIO_LED "/sys/class/gpio/gpio10"
-#define LED "10"
+/* Functions prototypes ------------------------------------------------------*/
 
-/*
- * button k1 - gpioa.0 --> gpio0
- * button k2 - gpioa.2 --> gpio2
- * button k3 - gpioa.3 --> gpio3
- */
-#define GPIO_BUTTON_K1 "/sys/class/gpio/gpio0"
-#define GPIO_BUTTON_K2 "/sys/class/gpio/gpio2"
-#define GPIO_BUTTON_K3 "/sys/class/gpio/gpio3"
-#define BUTTON_K1 "0"
-#define BUTTON_K2 "2"
-#define BUTTON_K3 "3"
+int led_init(led_t* led, int gpio);
+void led_on(led_t* led);
+void led_off(led_t* led);
 
-#endif  // DRIVERS_USER_IO_BOARD_H_
+#endif  // DRIVERS_LED_LED_H
