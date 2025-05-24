@@ -20,6 +20,9 @@ src/**/.skeleton.*
 src/**/*.o
 src/**/*.dtb
 src/**/*.ovl
+src/**/*.d
+src/**/*.data
+
 
 src/02_modules/procstat/procstat
 src/02_modules/procstat/procstat_s
@@ -27,6 +30,9 @@ src/02_modules/procstat/procstat_s
 src/03_drivers/sample01/main1
 src/03_drivers/sample01/main2
 src/03_drivers/sample01/main3
+
+src/06_optimization/ex03/logs/
+src/06_optimization/ex03/read-apache-logs
 
 src/**/**/build
 backup-files/*
